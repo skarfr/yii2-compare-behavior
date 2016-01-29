@@ -1,24 +1,18 @@
-# yii2 Compare behavior
+# Yii2 Compare behavior
 With this behavior, you will be able to compare 2 objects from the same class
-
-### How does it work ?
-
-
-### Requirements
-*
 
 ### Installation
 Attach the behavior to your model class:
-  use app\components\CompareBehavior;
-  //[...]
-  public function behaviors()
-  {
+    use app\components\CompareBehavior;
+    //[...]
+    public function behaviors()
+    {
       return [
           'compare' => [
               'class' => CompareBehavior::className(),
           ]
       ] ;
-  }
+    }
 
 ### How to use ?
 You can use the compare behavior in your controller:
