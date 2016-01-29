@@ -1,5 +1,5 @@
 # Yii2 Compare behavior
-With this behavior, you will be able to compare 2 objects from the same class
+This Yii2 behavior, can help you to compare all fields between 2 objects from the same class.
 
 ### Installation
 Attach the behavior to your model class:
