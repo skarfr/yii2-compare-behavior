@@ -3,6 +3,7 @@ With this behavior, you will be able to compare 2 objects from the same class
 
 ### Installation
 Attach the behavior to your model class:
+```
     use app\components\CompareBehavior;
     //[...]
     public function behaviors()
@@ -13,10 +14,10 @@ Attach the behavior to your model class:
           ]
       ] ;
     }
-
+```
 ### How to use ?
 You can use the compare behavior in your controller:
-  $compare = $objectCurrent->compare($objectReference);
+  `$compare = $objectCurrent->compare($objectReference);`
   
 And this behavior will returns for each common properties:
 * name: The property name getting compared
