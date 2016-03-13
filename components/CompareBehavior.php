@@ -1,24 +1,36 @@
 <?php
-
 namespace app\components;
-
 use yii\base\Behavior;
+
 
 class CompareBehavior extends Behavior
 {
-  /* Compare Trends */
+  /**
+   * List all available trends
+   */
   const TREND_UP    = 'up';
   const TREND_DOWN  = 'down';
   const TREND_EQUAL = 'equal';
 
+  /**
+   * List related glyphicon CSS classes
+   */
   const CLASS_UP    = 'glyphicon glyphicon-chevron-up trend-icon trend-up';
   const CLASS_DOWN  = 'glyphicon glyphicon-chevron-down trend-icon trend-down';
   const CLASS_EQUAL = 'glyphicon glyphicon-minus trend-icon trend-equal';
 
+  /**
+   * Compare fields/properties values of the calling object versus an other object: the reference 
+   *
+   * @param      var      $reference  Object which should be the same type as the calling object, to be compared to
+   * @param      array    $fields     List of fields/properties names belonging to both the calling object and the reference one, to be compared. If null, it will compare all of them
+   * @param      integer  $coeff      Coefficient applied to numeric fields/properties belonging to the reference, before it gets compared to the calling object. Default value: 1 (aka no coefficient)
+   *
+   * @return     array
+   */
   public function compare($reference, $fields = null, $coeff = 1) {
     $differences = array();
-
-    if(is_null($fields) === true) {
+    if(is_null($fields)) { // no fields name list given? we compare all of them!
       foreach($this->owner->attributes as $key => $refValue)
         $differences[$key] = $this->compareField($reference, $key, $coeff);
     }
@@ -29,97 +41,121 @@ class CompareBehavior extends Behavior
     return $differences;
   } 
  
+ /**
+  * Compare 1 field of the calling object versus the reference object same field
+  *
+  * @param      var      $reference  Object which should be the same type as the calling object, to be compared to
+  * @param      string   $field      field/property name belonging to both the calling object and the reference one, to be compared
+  * @param      integer  $coeff      Coefficient applied to numeric fields/properties belonging to the reference, before it gets compared to the calling object. Default value: 1 (aka no coefficient)
+  */
   public function compareField($reference, $field, $coeff) {
-    if(!isset($this->owner->$field)) { return null; }
+    if(!isset($this->owner->$field)) { return null; } // the calling object doesn't have the reference: there is nothing to compare
     else {
-      $property = array();
-      $property['name'] = $field;
-      $property['reference'] = isset($reference->$field) ? $reference->$field : null; //if not exist OR null, we put null
-      $property['referenceCoeff'] = $property['reference'];
-      $property['compared'] = $this->owner->$field;
-      $property['trend'] = '';
-      $property['trendCoeff'] = $property['trend'];
+      /**
+       * Default and initial values to be returned
+       */
+      $result = array();
+      $result['name'] = $field;
+      $result['reference'] = isset($reference->$field) ? $reference->$field : null;
+      $result['referenceCoeff'] = $result['reference']; //by default, no coeff applied because we may be comparing 2 strings
+      $result['compared'] = $this->owner->$field;
+      $result['trend'] = '';
+      $result['trendCoeff'] = $result['trend'];         //by default, no coeff applied because we may be comparing 2 strings
 
-      /*Compare numerics*/
-      if(is_numeric($property['compared']) && is_numeric($property['reference'])) {
-        $property['compare'] = 'numeric';
-        $property['reference'] = ((float)$property['reference']); //a numeric can be a string (money in gii)
-        $property['referenceCoeff'] = ((float)$property['reference']) * $coeff;
-        $property['diffValue'] = (float)$property['compared'] - (float)$property['reference'];
-        $property['diffValueCoeff'] = (float)$property['compared'] - (float)$property['referenceCoeff'];
-        $property['compared'] = (float)$property['compared'];
-          
-        /*calculation diffPercent*/
-        if    ($property['reference'] != 0) $property['diffPercent'] = $property['diffValue'] / (float)$property['reference']; // can not divide by 0
-        elseif($property['diffValue'] == 0) $property['diffPercent'] = 0; //both equal to 0
-        else                                $property['diffPercent'] = ($property['diffValue']<0)?-1:1 ;//reference = 0 & diffValue = -123 or +123
+      /**
+       * Numeric comparison
+       */
+      if(is_numeric($result['compared']) && is_numeric($result['reference'])) {
+        $result['compare'] = 'numeric';
+        // We cast in float because a numeric could be a string (ex: money fields in gii)
+        $result['reference'] = ((float)$result['reference']);
+        $result['referenceCoeff'] = ((float)$result['reference']) * $coeff;
+        $result['diffValue'] = (float)$result['compared'] - (float)$result['reference'];
+        $result['diffValueCoeff'] = (float)$result['compared'] - (float)$result['referenceCoeff'];
+        $result['compared'] = (float)$result['compared'];
         
-        if    ($property['referenceCoeff'] != 0) $property['diffPercentCoeff'] = $property['diffValueCoeff'] / (float)$property['referenceCoeff']; // can not divide by 0
-        elseif($property['diffValueCoeff'] == 0) $property['diffPercentCoeff'] = 0; //both equal to 0
-        else                                     $property['diffPercentCoeff'] = ($property['diffValueCoeff']<0)?-1:1 ;//reference = 0 & diffValue = -123 or +123
+        $result = $this->getDiffPercentNumeric($result);
+        $result = $this->getDiffPercentNumeric($result, "Coeff");
       }
      
-      /*Compare booleans*/
-      if(is_bool($property['compared']) && is_bool($property['reference'])) {
-        $property['compare'] = 'bool';
-        $property['diffValue'] = (int)$property['reference'] - (int)$property['compared'];
-        $property['diffValueCoeff'] = $property['diffValue']; //for bool, there is no coeff to apply on bool. It must be 1 or 0
-        $property['diffPercent'] = null;
-        $property['diffPercentCoeff'] = $property['diffPercent'];
-      }
-      
-      if (isset($property['compare'])) {
-        if    ($property['diffValue']>0) $property['trend'] = self::TREND_UP;
-        elseif($property['diffValue']<0) $property['trend'] = self::TREND_DOWN;
-        else                             $property['trend'] = self::TREND_EQUAL;
-
-        if    ($property['diffValueCoeff']>0) $property['trendCoeff'] = self::TREND_UP;
-        elseif($property['diffValueCoeff']<0) $property['trendCoeff'] = self::TREND_DOWN;
-        else                                  $property['trendCoeff'] = self::TREND_EQUAL;
-      }
-     
-      /*Compare strings, remember that "Compare numerics" can compare 2 strings such has "10.00" vs "123": so we must check that it didn't already happened*/
-      if(is_string($property['compared']) && is_string($property['reference']) && empty($property['trend'])) { 
-        $property['compare'] = 'string';
-        $property['diffValue'] = null;
-        $property['diffValueCoeff'] = $property['diffValue'];
-        $property['diffPercent'] = null;
-        $property['diffPercentCoeff'] = $property['diffPercent'];
-        $property['trend'] = self::TREND_EQUAL;
-        $property['trendCoeff'] = $property['trend'];
-        if    ($property['reference']<$property['compared']) $property['trend'] = self::TREND_UP;
-        elseif($property['reference']>$property['compared']) $property['trend'] = self::TREND_DOWN;
-        else                                                 $property['trend'] = self::TREND_EQUAL;
-        
-        if    ($property['referenceCoeff']<$property['compared']) $property['trendCoeff'] = self::TREND_UP;
-        elseif($property['referenceCoeff']>$property['compared']) $property['trendCoeff'] = self::TREND_DOWN;
-        else                                                      $property['trendCoeff'] = self::TREND_EQUAL;
-      }
-      
-      if($property['reference'] == null) {
-        if(is_numeric($property['compared'])) $property['compared'] = (float)$property['compared']; 
-        $property['compare'] = '';
-        $property['diffValue'] = null;
-        $property['diffValueCoeff'] = $property['diffValue'];
-        $property['diffPercent'] = null;
-        $property['diffPercentCoeff'] = $property['diffPercent'];
+      /**
+       * Boolean comparison
+       */
+      if(is_bool($result['compared']) && is_bool($result['reference'])) {
+        $result['compare'] = 'bool';
+        $result['diffValue'] = (int)$result['reference'] - (int)$result['compared'];
+        $result['diffValueCoeff'] = $result['diffValue']; //There is no coeff to apply on bool.
+        $result['diffPercent'] = null;
+        $result['diffPercentCoeff'] = null;
       }
 
-      /*Assign CSS class Trend*/
-      switch($property['trend']) {
-        case self::TREND_UP   : $property['trendIcon'] = self::CLASS_UP   ; break;
-        case self::TREND_DOWN : $property['trendIcon'] = self::CLASS_DOWN ; break;
-        case self::TREND_EQUAL: $property['trendIcon'] = self::CLASS_EQUAL; break;
-        default:                $property['trendIcon'] = '';                break;
+      /**
+       * String comparison
+       * "Numeric comparison" can compare 2 strings such has "10.00" vs "123", so we must check that it didn't already happened
+       */
+      if(is_string($result['compared']) && is_string($result['reference']) && empty($result['trend'])) { 
+        $result['compare'] = 'string';
+        $result['diffValue'] = null;
+        $result['diffValueCoeff'] = $result['diffValue'];
+        $result['diffPercent'] = null;
+        $result['diffPercentCoeff'] = $result['diffPercent'];
+        $result['trendCoeff'] = $result['trend'];
       }
-      
-      switch($property['trendCoeff']) {
-        case self::TREND_UP   : $property['trendIconCoeff'] = self::CLASS_UP   ; break;
-        case self::TREND_DOWN : $property['trendIconCoeff'] = self::CLASS_DOWN ; break;
-        case self::TREND_EQUAL: $property['trendIconCoeff'] = self::CLASS_EQUAL; break;
-        default:                $property['trendIconCoeff'] = '';                break;
+
+      /**
+       * Comparison to null
+       */
+      if(is_null($result['reference'])) {
+        if(is_numeric($result['compared'])) 
+          $result['compared'] = (float)$result['compared']; 
+        $result['compare'] = '';
+        $result['diffValue'] = null;
+        $result['diffValueCoeff'] = null;
+        $result['diffPercent'] = null;
+        $result['diffPercentCoeff'] = null;
       }
-      return (object)$property;
+
+      $result = $this->getTrend($result);
+      $result = $this->getTrend($result, "Coeff");
+      return (object)$result;
     }
+  }
+
+  /**
+   * Calculate the percentage of difference
+   *
+   * @param      &array  $result  The result array we are working on, passed by reference
+   * @param      string  $suffix  The suffix name: "Coeff" or "" ex: "diffPercent" vs "diffPercentCoeff"
+   */
+  private function getDiffPercentNumeric($result, $suffix="") {
+    if    ($result['reference'.$suffix] != 0) $result['diffPercent'.$suffix] = $result['diffValue'.$suffix] / (float)$result['reference'.$suffix];
+    elseif($result['diffValue'.$suffix] == 0) $result['diffPercent'.$suffix] = 0;                                       // they are both equal to 0
+    else                                      $result['diffPercent'.$suffix] = ($result['diffValue'.$suffix]<0)?-1:1 ;  // ex: reference = 0 & diffValue = -123 or +123: (+/-)100% difference
+    return $result;
+  }
+
+  /**
+   * Guess the Trend and it's related CSS class
+   *
+   * @param      &array  $result  The result array we are working on, passed by reference
+   * @param      string  $suffix  The suffix name: "Coeff" or "" ex: "diffPercent" vs "diffPercentCoeff"
+   */
+  private function getTrend($result, $suffix="") {
+    if(!is_null($result['reference'])) {
+      if    ($result['reference'.$suffix]<$result['compared']) $result['trend'.$suffix] = self::TREND_UP;
+      elseif($result['reference'.$suffix]>$result['compared']) $result['trend'.$suffix] = self::TREND_DOWN;
+      else                                                     $result['trend'.$suffix] = self::TREND_EQUAL;
+
+      /**
+       * Trend icon CSS class
+       */
+      switch($result['trend'.$suffix]) {
+        case self::TREND_UP   : $result['trendIcon'.$suffix] = self::CLASS_UP   ; break;
+        case self::TREND_DOWN : $result['trendIcon'.$suffix] = self::CLASS_DOWN ; break;
+        case self::TREND_EQUAL: $result['trendIcon'.$suffix] = self::CLASS_EQUAL; break;
+        default:                $result['trendIcon'.$suffix] = '';                break;
+      }
+    }
+    return $result;
   }
 }
